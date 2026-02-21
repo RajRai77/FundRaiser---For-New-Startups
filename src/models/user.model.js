@@ -44,19 +44,27 @@ const userSchema = new Schema(
         },
         refreshToken: {
             type: String
-        }
+        },
+        isPremium: {
+            type: Boolean,
+            default: false // Har naya user by default free tier par hoga
+        },
+
+        
     },
     {
         timestamps: true
     }
 )
 
-userSchema.pre("save", async function (next) {
-    if(!this.isModified("password") || !this.password) return next();
+userSchema.pre("save", async function () {
+    // If password is not modified or doesn't exist (like in Google Auth), just return
+    if(!this.isModified("password") || !this.password) return;
 
-    this.password = await bcrypt.hash(this.password, 10)
-    next()
-})
+    // Otherwise, hash the password
+    this.password = await bcrypt.hash(this.password, 10);
+});
+
 
 userSchema.methods.isPasswordCorrect = async function(password){
     if(!this.password) return false; // If they signed up with Google, no password exists
