@@ -3,19 +3,20 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Startup } from "../models/startup.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { Investment } from "../models/investment.model.js";
 
 // --- 1. Create Pitch (Step 1: Basics) ---
 const createPitchBasics = asyncHandler(async (req, res) => {
-    // 1. Get data from the frontend form
-    const { companyName, tagline, websiteUrl, location, foundedYear } = req.body;
+    // 1. Get exact data that Frontend CreatePitch form is sending
+    const { companyName, tagline, category, fundingGoal, equityOffered } = req.body;
 
     if (!companyName) {
         throw new ApiError(400, "Company Name is required to start a pitch.");
     }
 
-    // 2. Handle the Logo Upload (Using your Cloudinary utility)
+    // 2. Handle the Logo Upload
     let logoUrl = "";
-    const logoLocalPath = req.file?.path; // Multer will provide this
+    const logoLocalPath = req.file?.path; 
 
     if (logoLocalPath) {
         const uploadedLogo = await uploadOnCloudinary(logoLocalPath);
@@ -26,19 +27,17 @@ const createPitchBasics = asyncHandler(async (req, res) => {
     }
 
     // 3. Create the Draft in the Database
-    // We automatically link the founderId to the user making the request
     const startup = await Startup.create({
         founderId: req.user._id,
         companyName,
         tagline,
-        websiteUrl,
-        location,
-        foundedYear,
+        category, // Saved from frontend
+        fundingGoal: Number(fundingGoal), // Saved from frontend
+        equityOfferedPercentage: Number(equityOffered), // DB requires 'equityOfferedPercentage'
         logoUrl,
-        status: "draft" // It stays a draft until they finish all 5 steps
+        status: "draft"
     });
 
-    // 4. Send success response
     return res.status(201).json(
         new ApiResponse(201, startup, "Step 1 completed: Draft pitch created successfully.")
     );
@@ -57,70 +56,45 @@ const getMyPitches = asyncHandler(async (req, res) => {
 
 // --- 3. Update Pitch (Steps 2, 3, & 4) ---
 const updatePitch = asyncHandler(async (req, res) => {
-    // URL se startupId nikalenge
     const { startupId } = req.params;
-
-    // 1. Find the startup and ensure the logged-in user owns it
-    const startup = await Startup.findOne({ _id: startupId, founderId: req.user._id });
     
+    // 1. Extract ALL fields coming from frontend FormData
+    const { description, problemStatement, solution, marketTraction, pitchVideoUrl } = req.body;
+
+    const startup = await Startup.findById(startupId);
     if (!startup) {
-        throw new ApiError(404, "Startup pitch not found or you are not authorized to edit it");
+        throw new ApiError(404, "Pitch not found");
     }
 
-    // 2. Extract all possible fields for steps 2, 3, and 4
-    const {
-        problemStatement,
-        solutionStatement,
-        fundingGoal,
-        minTicketSize,
-        equityOfferedPercentage,
-        targetMarket,
-        marketScope,
-        goToMarketStrategy,
-        demoVideoUrl,
-        category,
-        tags
-    } = req.body;
+    // 2. Security Check: Only the founder who created it can edit it
+    if (startup.founderId.toString() !== req.user._id.toString()) {
+        throw new ApiError(403, "You do not have permission to edit this pitch");
+    }
 
-    // 3. Handle Pitch Deck (PDF) Upload if provided
-    let pitchDeckUrl = startup.pitchDeckUrl; // Keep existing by default
-    const pitchDeckLocalPath = req.files?.pitchDeck?.[0]?.path; // Multer syntax for fields
+    // 3. Update the text fields in the database
+    if (description) startup.description = description;
+    if (problemStatement) startup.problemStatement = problemStatement;
+    if (solution) startup.solution = solution;
+    if (marketTraction) startup.marketTraction = marketTraction;
+    if (pitchVideoUrl) startup.pitchVideoUrl = pitchVideoUrl;
 
+    // 4. Handle Pitch Deck PDF upload (if a new one is provided)
+    const pitchDeckLocalPath = req.files?.pitchDeck?.[0]?.path;
     if (pitchDeckLocalPath) {
-        const uploadedDeck = await uploadOnCloudinary(pitchDeckLocalPath);
-        if (uploadedDeck) {
-            pitchDeckUrl = uploadedDeck.url;
+        // Upload to Cloudinary
+        const pitchDeck = await uploadOnCloudinary(pitchDeckLocalPath);
+        if (pitchDeck && pitchDeck.url) {
+            startup.pitchDeckUrl = pitchDeck.url;
         }
     }
 
-    // 4. Update the fields ONLY if the user sent them
-    if (problemStatement) startup.problemStatement = problemStatement;
-    if (solutionStatement) startup.solutionStatement = solutionStatement;
-    if (fundingGoal) startup.fundingGoal = Number(fundingGoal);
-    if (minTicketSize) startup.minTicketSize = Number(minTicketSize);
-    if (equityOfferedPercentage) startup.equityOfferedPercentage = Number(equityOfferedPercentage);
-    if (targetMarket) startup.targetMarket = targetMarket;
-    if (marketScope) startup.marketScope = marketScope;
-    if (goToMarketStrategy) startup.goToMarketStrategy = goToMarketStrategy;
-    if (demoVideoUrl) startup.demoVideoUrl = demoVideoUrl;
-    if (category) startup.category = category;
-    if (tags) startup.tags = tags; 
-    
-    startup.pitchDeckUrl = pitchDeckUrl;
-
-    // 5. Automatic Valuation Calculator (If financials are provided)
-    if (startup.fundingGoal && startup.equityOfferedPercentage) {
-        startup.valuationCap = (startup.fundingGoal / (startup.equityOfferedPercentage / 100));
-    }
-
-    // Save changes to Database
+    // 5. Save everything to the database
     await startup.save();
 
     return res.status(200).json(
-        new ApiResponse(200, startup, "Pitch draft updated successfully!")
+        new ApiResponse(200, startup, "Pitch draft saved successfully")
     );
 });
-
 
 // --- 4. Submit Pitch for Review (Step 5) ---
 const submitPitch = asyncHandler(async (req, res) => {
@@ -203,6 +177,26 @@ const getStartupById = asyncHandler(async (req, res) => {
     );
 });
 
+// --- 7. Get Startup Investors/Analytics (For Founder Dashboard) ---
+const getStartupInvestors = asyncHandler(async (req, res) => {
+    const { startupId } = req.params;
+
+    // Verify that the person asking is actually the founder of this startup
+    const startup = await Startup.findOne({ _id: startupId, founderId: req.user._id });
+    if (!startup) {
+        throw new ApiError(403, "You do not have permission to view these analytics.");
+    }
+
+    // Fetch all investments for this startup and populate the investor details
+    const investments = await Investment.find({ startupId })
+        .populate("investorId", "fullName email profileImageUrl")
+        .sort({ createdAt: -1 });
+
+    return res.status(200).json(
+        new ApiResponse(200, { startup, investments }, "Investors fetched successfully")
+    );
+});
+
 
 export { 
     createPitchBasics, 
@@ -210,5 +204,6 @@ export {
     updatePitch, 
     submitPitch, 
     getLiveStartups,   
-    getStartupById     
+    getStartupById,
+    getStartupInvestors
 };

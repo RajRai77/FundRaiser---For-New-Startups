@@ -77,5 +77,48 @@ const unlockChatAccess = asyncHandler(async (req, res) => {
         new ApiResponse(200, {}, "Chat unlocked successfully! You can now message the founder.")
     );
 });
+// --- 4. Check Access (Frontend uses this to show Lock/Unlock Screen) ---
+const checkChatAccess = asyncHandler(async (req, res) => {
+    const { founderId } = req.params;
 
-export { sendMessage, getChatHistory, unlockChatAccess };
+    // 1. Founders and Admins always have access to reply
+    // 2. Premium Investors always have access
+    if (req.user.role !== "investor" || req.user.isPremium) {
+        return res.status(200).json(new ApiResponse(200, { hasAccess: true }, "Access Granted"));
+    }
+
+    // 3. Regular Investors check
+    const hasAccess = await ChatAccess.findOne({
+        investorId: req.user._id,
+        founderId: founderId
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, { hasAccess: !!hasAccess }, "Access Status Checked")
+    );
+});
+
+// --- 5. Get Contacts List (For the Left Sidebar) ---
+const getContacts = asyncHandler(async (req, res) => {
+    const messages = await Message.find({
+        $or: [{ senderId: req.user._id }, { receiverId: req.user._id }]
+    }).populate("senderId receiverId", "fullName profileImageUrl role");
+
+    const contactsMap = new Map();
+    
+    messages.forEach(msg => {
+        const otherUser = msg.senderId._id.toString() === req.user._id.toString() 
+            ? msg.receiverId 
+            : msg.senderId;
+            
+        if (!contactsMap.has(otherUser._id.toString())) {
+            contactsMap.set(otherUser._id.toString(), otherUser);
+        }
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, Array.from(contactsMap.values()), "Contacts fetched")
+    );
+});
+
+export { sendMessage, getChatHistory, unlockChatAccess, checkChatAccess,getContacts};

@@ -100,7 +100,7 @@ const verifyInvestmentPayment = asyncHandler(async (req, res) => {
             status: "completed",
             paymentReferenceId: razorpay_payment_id
         },
-        { new: true }
+        { returnDocument: 'after' }
     );
 
     // 4. Increase the Startup's raised amount!

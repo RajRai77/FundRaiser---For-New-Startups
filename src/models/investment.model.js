@@ -24,9 +24,10 @@ const investmentSchema = new Schema(
             enum: ['pending', 'completed', 'failed', 'refunded'],
             default: 'pending'
         },
-        paymentReferenceId: {
-            type: String, // To store Stripe or Razorpay transaction IDs later
-        }
+       razorpayPaymentId: {
+        type: String,
+        required: true
+    }
     },
     {
         timestamps: true

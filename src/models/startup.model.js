@@ -35,12 +35,20 @@ const startupSchema = new Schema(
             type: Number
         },
 
-        // --- Step 2: Problem & Solution ---
+        // --- Step 2: Pitch Details (Updated to perfectly match Frontend) ---
+        description: {
+            type: String,
+            trim: true
+        },
         problemStatement: {
             type: String,
             trim: true
         },
-        solutionStatement: {
+        solution: { // 🔥 Fixed from solutionStatement
+            type: String,
+            trim: true
+        },
+        marketTraction: { // 🔥 Added
             type: String,
             trim: true
         },
@@ -53,7 +61,6 @@ const startupSchema = new Schema(
         },
         minTicketSize: {
             type: Number,
-            required: true,
             default: 0
         },
         equityOfferedPercentage: {
@@ -66,7 +73,7 @@ const startupSchema = new Schema(
             default: 0
         },
         valuationCap: {
-            type: Number // Can be calculated in frontend or pre-save hook
+            type: Number 
         },
 
         // --- Step 4: Market & Strategy ---
@@ -88,8 +95,8 @@ const startupSchema = new Schema(
         pitchDeckUrl: {
             type: String, // Cloudinary URL for PDF
         },
-        demoVideoUrl: {
-            type: String, // YouTube/Vimeo Link
+        pitchVideoUrl: { // 🔥 Fixed from demoVideoUrl
+            type: String, 
         },
         category: {
             type: String,
@@ -122,10 +129,10 @@ const startupSchema = new Schema(
         },
         isVerified: {
             type: Boolean,
-            default: false // Triggers the green VERIFIED badge
+            default: false 
         },
         campaignEndDate: {
-            type: Date // For the "24 Days Left" UI
+            type: Date 
         }
     },
     {
