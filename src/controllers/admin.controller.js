@@ -2,6 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Startup } from "../models/startup.model.js";
+import { Notification } from "../models/notification.model.js";
 
 // --- 1. Get All Pending Pitches ---
 const getPendingPitches = asyncHandler(async (req, res) => {
@@ -55,6 +56,16 @@ const reviewPitch = asyncHandler(async (req, res) => {
     }
 
     await startup.save();
+
+    await Notification.create({
+            userId: startup.founderId,
+            title: action === 'approve' ? 'Pitch Approved! 🎉' : 'Pitch Rejected 🛑',
+            message: action === 'approve' 
+                ? `Your pitch "${startup.companyName}" is now LIVE for investors!` 
+                : `Your pitch was rejected. Reason: ${adminNotes}`,
+            type: action === 'approve' ? 'success' : 'error',
+            link: '/my-pitches'
+        });
 
     return res.status(200).json(
         new ApiResponse(200, startup, `Pitch successfully ${action}d.`)

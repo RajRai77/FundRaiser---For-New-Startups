@@ -4,7 +4,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Startup } from "../models/startup.model.js";
-import { Investment } from "../models/investment.model.js"; // 👈 Import new model
+import { Investment } from "../models/investment.model.js"; // 👈 Import new 
+import { Notification } from "../models/notification.model.js"
 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
@@ -48,6 +49,17 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     if (startup.raisedAmount >= startup.fundingGoal) {
         startup.status = "funded";
     }
+
+    // 🔥 Trigger Notification to Founder
+    await Notification.create({
+        userId: startup.founderId,
+        title: 'New Investment Received! 💸',
+        message: `Great news! You just received ₹${Number(amount).toLocaleString()} for ${startup.companyName}.`,
+        type: 'success',
+        link: `/analytics/${startup._id}`
+    });
+
+    
     await startup.save();
 
     // 2. 🔥 Create Investment Record for the Investor
