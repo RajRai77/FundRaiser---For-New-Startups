@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser, loginUser, logoutUser , updateProfile} from "../controllers/user.controller.js";
+import { registerUser, loginUser, logoutUser , updateProfile, resetPassword} from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
 
@@ -8,6 +8,7 @@ const router = Router();
 // --- Public Routes (No login required) ---
 router.route("/register").post(registerUser);
 router.route("/login").post(loginUser);
+router.route("/reset-password").post(resetPassword);
 
 // --- Secured Routes (Must be logged in) ---
 // We inject verifyJWT middleware before the logout controller runs
